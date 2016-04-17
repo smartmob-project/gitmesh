@@ -5,3 +5,4 @@
 .coverage
 .tox/
 coverage/
+tests/plug-ins/dist/

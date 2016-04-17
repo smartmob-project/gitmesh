@@ -29,4 +29,16 @@ setup(
             'version.txt',
         ],
     },
+    scripts=[
+        'bin/pre-receive',
+    ],
+    entry_points={
+        'console_scripts': [
+            'gitmesh = gitmesh.__main__:main',
+        ],
+        'gitmesh.pre_receive': [],
+    },
+    install_requires=[
+        'click>=6.6',
+    ],
 )
