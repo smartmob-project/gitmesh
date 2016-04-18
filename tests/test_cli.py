@@ -112,3 +112,55 @@ def test_update(cli):
         ],
         any_order=True,
     )
+
+
+def test_post_receive(cli):
+
+    post_receive = mock.MagicMock()
+
+    def mock_iter_entry_points(group):
+        assert group == 'gitmesh.post_receive'
+        return iter([
+            # echo = echo:post_receive
+            pkg_resources.EntryPoint(
+                name='echo',
+                module_name='echo',
+                attrs=('post_receive',),
+                extras={},
+                dist='echo',
+            ),
+        ])
+
+    def mock_import_module(name, package=None):
+        assert name == 'echo'
+        assert package is None
+        return DynamicObject({
+            'post_receive': post_receive,
+        })
+
+    # When we execute the post-receive hook.
+    with mock.patch('pkg_resources.iter_entry_points') as iter_entry_points:
+        iter_entry_points.side_effect = mock_iter_entry_points
+        with mock.patch('importlib.import_module') as import_module:
+            import_module.side_effect = mock_import_module
+            cli(['post-receive'], input='\n'.join([
+                'a b c',
+                'd e f',
+            ]))
+
+    # Then it should have been invoked based on input from stdin.
+    post_receive.assert_has_calls(
+        calls=[
+            mock.call(
+                old_ref='a',
+                new_ref='b',
+                target='c',
+            ),
+            mock.call(
+                old_ref='d',
+                new_ref='e',
+                target='f',
+            ),
+        ],
+        any_order=True,
+    )

@@ -13,5 +13,8 @@ setup(
         'gitmesh.update': [
             'echo = echo:update',
         ],
+        'gitmesh.post_receive': [
+            'echo = echo:post_receive',
+        ],
     },
 )

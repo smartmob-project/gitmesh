@@ -51,6 +51,21 @@ def update(target, old_ref, new_ref):
         )
 
 
+@cli.command(name='post-receive')
+def post_receive():
+    """Git post-receive hook."""
+    post_receive_hooks = list(find_entry_points('gitmesh.post_receive'))
+    for line in sys.stdin:
+        old_ref, new_ref, target = line.strip().split(' ', 2)
+        for _, post_receive_hook in post_receive_hooks:
+            print('Running hook %r.' % _)
+            post_receive_hook(
+                target=target,
+                old_ref=old_ref,
+                new_ref=new_ref,
+            )
+
+
 def main():
     """Setuptools "console_script" entry point."""
     return cli()
