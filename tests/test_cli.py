@@ -53,20 +53,11 @@ def test_pre_receive(cli):
             ]))
 
     # Then it should have been invoked based on input from stdin.
-    pre_receive.assert_has_calls(
-        calls=[
-            mock.call(
-                old_ref='a',
-                new_ref='b',
-                target='c',
-            ),
-            mock.call(
-                old_ref='d',
-                new_ref='e',
-                target='f',
-            ),
-        ],
-        any_order=True,
+    pre_receive.assert_called_once_with(
+        updates={
+            'c': ('a', 'b'),
+            'f': ('d', 'e'),
+        },
     )
 
 
@@ -102,15 +93,10 @@ def test_update(cli):
             cli(['update', 'a', 'b', 'c'])
 
     # Then it should have been invoked based on command-line arguments.
-    update.assert_has_calls(
-        calls=[
-           mock.call(
-                target='a',
-                old_ref='b',
-                new_ref='c',
-            ),
-        ],
-        any_order=True,
+    update.assert_called_once_with(
+        ref='a',
+        old='b',
+        new='c',
     )
 
 
@@ -149,20 +135,11 @@ def test_post_receive(cli):
             ]))
 
     # Then it should have been invoked based on input from stdin.
-    post_receive.assert_has_calls(
-        calls=[
-            mock.call(
-                old_ref='a',
-                new_ref='b',
-                target='c',
-            ),
-            mock.call(
-                old_ref='d',
-                new_ref='e',
-                target='f',
-            ),
-        ],
-        any_order=True,
+    post_receive.assert_called_once_with(
+        updates={
+            'c': ('a', 'b'),
+            'f': ('d', 'e'),
+        },
     )
 
 
@@ -198,14 +175,13 @@ def test_post_update(cli):
             cli(['post-update', 'a', 'b', 'c', 'd', 'e', 'f'])
 
     # Then it should have been invoked based on command-line arguments.
-    post_update.assert_has_calls(
-        calls=[
-            mock.call(target='a'),
-            mock.call(target='b'),
-            mock.call(target='c'),
-            mock.call(target='d'),
-            mock.call(target='e'),
-            mock.call(target='f'),
+    post_update.assert_called_once_with(
+        refs=[
+            'a',
+            'b',
+            'c',
+            'd',
+            'e',
+            'f',
         ],
-        any_order=True,
     )

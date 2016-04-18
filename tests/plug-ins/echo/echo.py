@@ -1,17 +1,20 @@
 # -*- coding: utf-8 -*-
 
 
-def pre_receive(target, old_ref, new_ref):
-    print('[ECHO] pre-receive')
+def pre_receive(updates):
+    for ref, (old, new) in updates.items():
+        print('[ECHO] pre-receive %s | %s ==> %s' % (ref, old, new))
 
 
-def update(target, old_ref, new_ref):
-    print('[ECHO] update')
+def update(ref, old, new):
+    print('[ECHO] update %s | %s ==> %s' % (ref, old, new))
 
 
-def post_receive(target, old_ref, new_ref):
-    print('[ECHO] post-receive')
+def post_receive(updates):
+    for ref, (old, new) in updates.items():
+        print('[ECHO] post-receive %s | %s ==> %s' % (ref, old, new))
 
 
-def post_update(target):
-    print('[ECHO] post-update')
+def post_update(refs):
+    for ref in refs:
+        print('[ECHO] post-update %s' % (ref,))
