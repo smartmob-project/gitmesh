@@ -273,6 +273,8 @@ async def test_clone_repository(server, client, run, workspace):
 
     # Then we should be able to push to it.
     repo = workspace.open_repo(repo['name'], bare=False)
+    await repo.run('git config user.name "py.test"')
+    await repo.run('git config user.email "noreply@example.org"')
     repo.edit('README.txt', 'Nothing to see here!')
     await repo.run('git add README.txt')
     await repo.run('git commit -m "Starts project."')

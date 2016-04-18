@@ -25,6 +25,8 @@ async def test_hooks(storage, workspace, run, echo_plugin):
     clone = await workspace.clone(origin.path)
     assert clone.name == 'example'
     assert clone.path == os.path.join(workspace.path, 'example')
+    await clone.run('git config user.name "py.test"')
+    await clone.run('git config user.email "noreply@example.org"')
     clone.edit('README', "I'll never finish this.")
     await clone.run('git add README')
     await clone.run('git commit -m "Sets project goals."')
