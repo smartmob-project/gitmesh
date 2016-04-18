@@ -15,6 +15,6 @@ def post_receive(updates):
         print('[ECHO] post-receive %s | %s ==> %s' % (ref, old, new))
 
 
-def post_update(refs):
+async def post_update(refs):
     for ref in refs:
         print('[ECHO] post-update %s' % (ref,))

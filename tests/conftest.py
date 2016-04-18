@@ -1,28 +1,30 @@
 # -*- coding: utf-8 -*-
 
 
+import asyncio
 import click.testing
 import os
 import pytest
 import stat
-import subprocess
 import testfixtures
+
+from asyncio import subprocess
 
 from gitmesh import __main__
 
 
-def check_output(command, cwd=None, env=None):
+async def check_output(command, cwd=None, env=None):
     cwd = cwd or os.getcwd()
     env = env or os.environ
-    process = subprocess.Popen(
-        command, shell=True,
+    process = await asyncio.create_subprocess_shell(
+        command,
         cwd=cwd, env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
     )
-    output, _ = process.communicate()
+    output, _ = await process.communicate()
     output = output.decode('utf-8').strip()
-    status = process.wait()
+    status = await process.wait()
     if status != 0:
         raise Exception('Command %r failed with status %r and output %r.' % (
             command,
@@ -41,8 +43,8 @@ def merge_envs(lhs, rhs):
 
 @pytest.fixture
 def run():
-    def run(*args, **kwds):
-        return check_output(*args, **kwds)
+    async def run(*args, **kwds):
+        return await check_output(*args, **kwds)
     return run
 
 
@@ -54,20 +56,20 @@ class Storage(object):
     def path(self):
         return self._path
 
-    def create_repo(self, name):
+    async def create_repo(self, name):
         """Create a new bare repository."""
         path = os.path.join(self._path, name + '.git')
         os.mkdir(path)
-        check_output(
+        await check_output(
             'git init --bare',
             cwd=path,
         )
         return Repository(name, path, bare=True)
 
-    def clone(self, link):
+    async def clone(self, link):
         """Clone an existing repository."""
         name = link.rsplit('/', 1)[1][:-4]
-        check_output('git clone ' + link, cwd=self._path)
+        await check_output('git clone ' + link, cwd=self._path)
         return Repository(name, os.path.join(self._path, name), bare=False)
 
 
@@ -94,9 +96,9 @@ class Repository(object):
         with open(os.path.join(self._path, path), 'w') as stream:
             stream.write(data)
 
-    def run(self, *args, **kwds):
+    async def run(self, *args, **kwds):
         """Run a shell command inside the repository."""
-        return check_output(*args, cwd=self._path, **kwds)
+        return await check_output(*args, cwd=self._path, **kwds)
 
     def install_hook(self, name, data):
         """Symlink a hook into the repository."""
@@ -141,8 +143,12 @@ def cli():
     return run
 
 
-@pytest.yield_fixture(scope='module')
-def echo_plugin():
-    check_output('pip install ./tests/plug-ins/echo/')
+@pytest.yield_fixture(scope='function')
+def echo_plugin(event_loop):
+    event_loop.run_until_complete(check_output(
+        'pip install ./tests/plug-ins/echo/'
+    ))
     yield
-    check_output('pip uninstall -y echo')
+    event_loop.run_until_complete(check_output(
+        'pip uninstall -y echo'
+    ))

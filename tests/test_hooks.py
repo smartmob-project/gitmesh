@@ -2,6 +2,7 @@
 
 
 import os.path
+import pytest
 
 
 # TODO: figure out if we can symlink the installed scripts directly...
@@ -34,9 +35,10 @@ def splitlines(output):
     return output
 
 
-def test_hooks(storage, workspace, run, echo_plugin):
+@pytest.mark.asyncio
+async def test_hooks(storage, workspace, run, echo_plugin):
     # Given a repository uses a bunch of hooks.
-    origin = storage.create_repo('example')
+    origin = await storage.create_repo('example')
     assert origin.name == 'example'
     assert origin.path == os.path.join(storage.path, 'example.git')
     origin.install_hook('pre-receive', PRE_RECEIVE)
@@ -46,23 +48,23 @@ def test_hooks(storage, workspace, run, echo_plugin):
     commit0 = '0' * 40
 
     # And we update the master branch.
-    clone = workspace.clone(origin.path)
+    clone = await workspace.clone(origin.path)
     assert clone.name == 'example'
     assert clone.path == os.path.join(workspace.path, 'example')
     clone.edit('README', "I'll never finish this.")
-    clone.run('git add README')
-    clone.run('git commit -m "Sets project goals."')
-    commit1 = clone.run('git rev-parse HEAD').strip()
+    await clone.run('git add README')
+    await clone.run('git commit -m "Sets project goals."')
+    commit1 = (await clone.run('git rev-parse HEAD')).strip()
 
     # And we update a topic branch.
     clone.edit('hot-topic.txt', "OMG, I have an idea!")
-    clone.run('git checkout -b hot-topic')
-    clone.run('git add hot-topic.txt')
-    clone.run('git commit -m "Keeps track of new idea."')
-    commit2 = clone.run('git rev-parse HEAD').strip()
+    await clone.run('git checkout -b hot-topic')
+    await clone.run('git add hot-topic.txt')
+    await clone.run('git commit -m "Keeps track of new idea."')
+    commit2 = (await clone.run('git rev-parse HEAD')).strip()
 
     # When we push both branches to the repository.
-    output = clone.run('git push origin master hot-topic')
+    output = await clone.run('git push origin master hot-topic')
 
     # Then, the our hook should get executed.
     expected_lines = [
