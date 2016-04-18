@@ -33,6 +33,7 @@ setup(
         'bin/pre-receive',
         'bin/update',
         'bin/post-receive',
+        'bin/post-update',
     ],
     entry_points={
         'console_scripts': [
@@ -41,6 +42,7 @@ setup(
         'gitmesh.pre_receive': [],
         'gitmesh.update': [],
         'gitmesh.post_receive': [],
+        'gitmesh.post_update': [],
     },
     install_requires=[
         'click>=6.6',

@@ -11,3 +11,7 @@ def update(target, old_ref, new_ref):
 
 def post_receive(target, old_ref, new_ref):
     print('[ECHO] post-receive')
+
+
+def post_update(target):
+    print('[ECHO] post-update')

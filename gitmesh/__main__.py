@@ -66,6 +66,19 @@ def post_receive():
             )
 
 
+@cli.command(name='post-update')
+@click.argument('refs', nargs=-1)
+def post_update(refs):
+    """Git post-update hook."""
+    post_update_hooks = list(find_entry_points('gitmesh.post_update'))
+    for target in refs:
+        for _, post_update_hook in post_update_hooks:
+            print('Running hook %r.' % _)
+            post_update_hook(
+                target=target,
+            )
+
+
 def main():
     """Setuptools "console_script" entry point."""
     return cli()
