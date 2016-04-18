@@ -126,6 +126,7 @@ def workspace():
 def cli():
     # See: http://click.pocoo.org/5/testing/
     def run(command, input=None):
+        print('RUN:', command)
         runner = click.testing.CliRunner()
         result = runner.invoke(
             __main__.cli, command,

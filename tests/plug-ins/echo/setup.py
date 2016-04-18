@@ -10,5 +10,8 @@ setup(
         'gitmesh.pre_receive': [
             'echo = echo:pre_receive',
         ],
+        'gitmesh.update': [
+            'echo = echo:update',
+        ],
     },
 )

@@ -31,12 +31,14 @@ setup(
     },
     scripts=[
         'bin/pre-receive',
+        'bin/update',
     ],
     entry_points={
         'console_scripts': [
             'gitmesh = gitmesh.__main__:main',
         ],
         'gitmesh.pre_receive': [],
+        'gitmesh.update': [],
     },
     install_requires=[
         'click>=6.6',

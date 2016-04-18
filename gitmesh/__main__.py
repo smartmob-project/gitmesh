@@ -35,6 +35,22 @@ def pre_receive():
             )
 
 
+@cli.command(name='update')
+@click.argument('target')
+@click.argument('old_ref')
+@click.argument('new_ref')
+def update(target, old_ref, new_ref):
+    """Git pre-receive hook."""
+    update_hooks = list(find_entry_points('gitmesh.update'))
+    for _, update_hook in update_hooks:
+        print('Running hook %r.' % _)
+        update_hook(
+            target=target,
+            old_ref=old_ref,
+            new_ref=new_ref,
+        )
+
+
 def main():
     """Setuptools "console_script" entry point."""
     return cli()

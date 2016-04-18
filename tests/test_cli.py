@@ -68,3 +68,47 @@ def test_pre_receive(cli):
         ],
         any_order=True,
     )
+
+
+def test_update(cli):
+
+    update = mock.MagicMock()
+
+    def mock_iter_entry_points(group):
+        assert group == 'gitmesh.update'
+        return iter([
+            # echo = echo:update
+            pkg_resources.EntryPoint(
+                name='echo',
+                module_name='echo',
+                attrs=('update',),
+                extras={},
+                dist='echo',
+            ),
+        ])
+
+    def mock_import_module(name, package=None):
+        assert name == 'echo'
+        assert package is None
+        return DynamicObject({
+            'update': update,
+        })
+
+    # When we execute the update hook.
+    with mock.patch('pkg_resources.iter_entry_points') as iter_entry_points:
+        iter_entry_points.side_effect = mock_iter_entry_points
+        with mock.patch('importlib.import_module') as import_module:
+            import_module.side_effect = mock_import_module
+            cli(['update', 'a', 'b', 'c'])
+
+    # Then it should have been invoked based on command-line arguments.
+    update.assert_has_calls(
+        calls=[
+           mock.call(
+                target='a',
+                old_ref='b',
+                new_ref='c',
+            ),
+        ],
+        any_order=True,
+    )
