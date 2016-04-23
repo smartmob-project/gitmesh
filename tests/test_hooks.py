@@ -5,29 +5,6 @@ import os.path
 import pytest
 
 
-# TODO: figure out if we can symlink the installed scripts directly...
-
-PRE_RECEIVE = """
-#!/usr/bin/env sh
-python3.5 -m gitmesh pre-receive
-""".strip()
-
-UPDATE = """
-#!/usr/bin/env sh
-python3.5 -m gitmesh update $1 $2 $3
-""".strip()
-
-POST_UPDATE = """
-#!/usr/bin/env sh
-python3.5 -m gitmesh post-update $@
-""".strip()
-
-POST_RECEIVE = """
-#!/usr/bin/env sh
-python3.5 -m gitmesh post-receive
-""".strip()
-
-
 def splitlines(output):
     output = output.split('\n')
     output = [line.rstrip() for line in output]
@@ -41,10 +18,7 @@ async def test_hooks(storage, workspace, run, echo_plugin):
     origin = await storage.create_repo('example')
     assert origin.name == 'example'
     assert origin.path == os.path.join(storage.path, 'example.git')
-    origin.install_hook('pre-receive', PRE_RECEIVE)
-    origin.install_hook('update', UPDATE)
-    origin.install_hook('post-update', POST_UPDATE)
-    origin.install_hook('post-receive', POST_RECEIVE)
+    origin.install_hooks()
     commit0 = '0' * 40
 
     # And we update the master branch.

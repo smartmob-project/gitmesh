@@ -1,2 +1,2 @@
 #!/usr/bin/env sh
-python3.5 -m gitmesh pre-receive
+python -m gitmesh pre-receive $@

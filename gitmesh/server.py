@@ -4,6 +4,7 @@
 import asyncio
 import json
 import logging
+import os
 
 from aiohttp import web
 from voluptuous import Schema, Required, MultipleInvalid
@@ -131,7 +132,7 @@ async def create_repository(request):
     # Create the project.
     storage = request.app['gitmesh.storage']
     try:
-        await storage.create_repo(name)
+        await storage.create_repo(name, install_hooks=True)
     except RepositoryExists:
         raise web.HTTPConflict()
 
@@ -208,7 +209,8 @@ async def git_http_endpoint(request):
 
     # TODO:
     # - authenticate on POST.
-    env = {
+    env = dict(os.environ.items())
+    env.update({
         'CONTENT_LENGTH': str(len(data)),
         'CONTENT_TYPE': request.content_type,
         'GATEWAY_INTERFACE': 'CGI/1.1',
@@ -226,7 +228,7 @@ async def git_http_endpoint(request):
         # 'SERVER_PORT': '',
         # 'SERVER_PROTOCOL': '',
         # 'SERVER_SOFTWARE': '',
-    }
+    })
     # env.update({
     # 'HTTP_'
     # })

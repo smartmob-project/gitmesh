@@ -123,6 +123,7 @@ async def test_install_server_hook(storage):
             '#!' + sys.executable,
             'print("Hello!")',
         ]),
+        method='data',
     )
 
     # When we execute the hook.
@@ -147,6 +148,7 @@ async def test_install_client_hook(storage, workspace):
             '#!' + sys.executable,
             'print("Hello!")',
         ]),
+        method='data',
     )
 
     # When we execute the hook.

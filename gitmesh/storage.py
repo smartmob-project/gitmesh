@@ -5,9 +5,16 @@ import asyncio
 import os
 import stat
 import shutil
+import sys
 
 from asyncio import subprocess
 from subprocess import CalledProcessError
+
+
+# TODO: make this work on Windows.
+def resolve_script(name):
+    """Compute path to a script installed by our package."""
+    return os.path.join(os.path.join(sys.exec_prefix, 'bin'), name)
 
 
 async def check_output(command, cwd=None, env=None,
@@ -64,7 +71,7 @@ class Storage(object):
         else:
             return os.path.join(self._path, name)
 
-    async def create_repo(self, name):
+    async def create_repo(self, name, install_hooks=False):
         """Create a new bare repository."""
         path = self._repo_path(name)
         try:
@@ -75,7 +82,10 @@ class Storage(object):
             'git init --bare',
             cwd=path,
         )
-        return Repository(name, path, bare=True)
+        repository = Repository(name, path, bare=True)
+        if install_hooks:
+            repository.install_hooks()
+        return repository
 
     async def clone(self, link):
         """Clone an existing repository."""
@@ -132,11 +142,20 @@ class Repository(object):
         """Run a shell command inside the repository."""
         return await check_output(*args, cwd=self._path, **kwds)
 
-    def install_hook(self, name, data):
+    def install_hooks(self):
+        """Install all our hooks."""
+        for name in ['pre-receive', 'update', 'post-update', 'post-receive']:
+            self.install_hook(name, resolve_script(name), method='link')
+
+    def install_hook(self, name, src, method):
         """Write a hook into the repository."""
+        assert method in ('data', 'link')
         if self.bare:
-            path = os.path.join(self._path, 'hooks', name)
+            dst = os.path.join(self._path, 'hooks', name)
         else:
-            path = os.path.join(self._path, '.git', 'hooks', name)
-        self.edit(path, data)
-        os.chmod(path, stat.S_IREAD | stat.S_IEXEC)
+            dst = os.path.join(self._path, '.git', 'hooks', name)
+        if method == 'data':
+            self.edit(dst, src)
+        if method == 'link':
+            os.symlink(src, dst)
+        os.chmod(dst, stat.S_IREAD | stat.S_IEXEC)
