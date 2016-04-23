@@ -4,10 +4,15 @@
 import asyncio
 import click
 import importlib
+import logging
 import pkg_resources
+import signal
 import sys
 
 from inspect import iscoroutine
+
+from gitmesh.server import serve_until
+from gitmesh.storage import Storage
 
 
 def find_entry_points(group):
@@ -84,6 +89,36 @@ def post_update(refs):
     for _, post_update_hook in post_update_hooks:
         print('Running hook %r.' % _)
         _await(loop, post_update_hook(refs=list(refs)))
+
+
+@cli.command(name='serve')
+@click.option('--host', default='0.0.0.0')
+@click.option('--port', default=8080)
+def serve(host, port):
+    """Run the server until SIGINT/CTRL-C is received."""
+
+    # Configure logging.
+    logging.basicConfig()
+    logging.getLogger('aiohttp.access').setLevel(logging.DEBUG)
+
+    # Pick the right event loop.
+    if sys.platform == 'win32':  # pragma: no cover
+        asyncio.set_event_loop(asyncio.ProactorEventLoop())
+    loop = asyncio.get_event_loop()
+
+    # Await a SIGINT/CTRL-C event.
+    cancel = asyncio.Future()
+    if sys.platform == 'win32':  # pragma: no cover
+        pass
+    else:
+        loop.add_signal_handler(signal.SIGINT, cancel.set_result, None)
+
+    # Serve "forever".
+    loop.run_until_complete(serve_until(
+        cancel,
+        storage=Storage('.'),
+        host=host, port=port,
+    ))
 
 
 def main():

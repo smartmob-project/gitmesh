@@ -1,37 +1,16 @@
 # -*- coding: utf-8 -*-
 
 
+import aiohttp
 import asyncio
 import click.testing
-import os
+# import logging
 import pytest
-import stat
 import testfixtures
 
-from asyncio import subprocess
-
 from gitmesh import __main__
-
-
-async def check_output(command, cwd=None, env=None):
-    cwd = cwd or os.getcwd()
-    env = env or os.environ
-    process = await asyncio.create_subprocess_shell(
-        command,
-        cwd=cwd, env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-    )
-    output, _ = await process.communicate()
-    output = output.decode('utf-8').strip()
-    status = await process.wait()
-    if status != 0:
-        raise Exception('Command %r failed with status %r and output %r.' % (
-            command,
-            status,
-            output,
-        ))
-    return output
+from gitmesh.storage import Storage, check_output
+from gitmesh.server import serve_until
 
 
 def merge_envs(lhs, rhs):
@@ -46,68 +25,6 @@ def run():
     async def run(*args, **kwds):
         return await check_output(*args, **kwds)
     return run
-
-
-class Storage(object):
-    def __init__(self, path):
-        self._path = path
-
-    @property
-    def path(self):
-        return self._path
-
-    async def create_repo(self, name):
-        """Create a new bare repository."""
-        path = os.path.join(self._path, name + '.git')
-        os.mkdir(path)
-        await check_output(
-            'git init --bare',
-            cwd=path,
-        )
-        return Repository(name, path, bare=True)
-
-    async def clone(self, link):
-        """Clone an existing repository."""
-        name = link.rsplit('/', 1)[1][:-4]
-        await check_output('git clone ' + link, cwd=self._path)
-        return Repository(name, os.path.join(self._path, name), bare=False)
-
-
-class Repository(object):
-    def __init__(self, name, path, bare):
-        self._name = name
-        self._path = path
-        self._bare = bare
-
-    @property
-    def name(self):
-        return self._name
-
-    @property
-    def path(self):
-        return self._path
-
-    @property
-    def bare(self):
-        return self._bare
-
-    def edit(self, path, data):
-        """Write to a file inside the working tree."""
-        with open(os.path.join(self._path, path), 'w') as stream:
-            stream.write(data)
-
-    async def run(self, *args, **kwds):
-        """Run a shell command inside the repository."""
-        return await check_output(*args, cwd=self._path, **kwds)
-
-    def install_hook(self, name, data):
-        """Symlink a hook into the repository."""
-        if self.bare:
-            path = os.path.join(self._path, 'hooks', name)
-        else:
-            path = os.path.join(self._path, '.git', 'hooks', name)
-        self.edit(path, data)
-        os.chmod(path, stat.S_IREAD | stat.S_IEXEC)
 
 
 @pytest.yield_fixture(scope='function')
@@ -152,3 +69,20 @@ def echo_plugin(event_loop):
     event_loop.run_until_complete(check_output(
         'pip uninstall -y echo'
     ))
+
+
+@pytest.yield_fixture(scope='function')
+def server(event_loop, storage):
+    cancel = asyncio.Future()
+    server = event_loop.create_task(
+        serve_until(cancel, storage=storage, host='127.0.0.1', port=8080)
+    )
+    yield '127.0.0.1:8080'
+    cancel.set_result(None)
+    event_loop.run_until_complete(server)
+
+
+@pytest.yield_fixture(scope='function')
+def client(event_loop):
+    with aiohttp.ClientSession() as session:
+        yield session

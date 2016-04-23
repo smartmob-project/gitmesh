@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
 
-from unittest import mock
 
+import os
 import pkg_resources
+import signal
+
+from unittest import mock
 
 
 class DynamicObject(object):
@@ -185,3 +188,11 @@ def test_post_update(cli):
             'f',
         ],
     )
+
+
+def test_serve(event_loop, cli):
+
+    # Make sure we eventually get a SIGINT/CTRL-C even.
+    event_loop.call_later(1.0, os.kill, os.getpid(), signal.SIGINT)
+
+    cli(['serve'])
