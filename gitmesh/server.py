@@ -248,7 +248,7 @@ async def git_http_endpoint(request):
     # 'HTTP_'
     # })
     env.update({
-        'GIT_PROJECT_ROOT': repo.path,
+        'GIT_PROJECT_ROOT': '.',
         'GIT_HTTP_EXPORT_ALL': '1',
     })
 
