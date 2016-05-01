@@ -3,8 +3,8 @@
 
 import asyncio
 import json
-import logging
 import os
+import structlog
 
 from aiohttp import web
 from voluptuous import Schema, Required, MultipleInvalid
@@ -90,6 +90,9 @@ def _details_url(request, name):
 async def index(request):
     """."""
 
+    log = request.app['gitmesh.log']
+    log.info('api.list-repositories')
+
     return web.json_response(Index({
         'list': _listing_url(request),
         'create': _create_url(request),
@@ -121,6 +124,8 @@ async def list_repositories(request):
 async def create_repository(request):
     """."""
 
+    log = request.app['gitmesh.log']
+
     # Validate request.
     r = await request.json()
     try:
@@ -135,6 +140,8 @@ async def create_repository(request):
         await storage.create_repo(name, install_hooks=True)
     except RepositoryExists:
         raise web.HTTPConflict()
+
+    log.info('repository.create', name=name)
 
     # Format response.
     return web.HTTPCreated(
@@ -154,6 +161,7 @@ async def create_repository(request):
 
 
 async def query_repository(request):
+    """."""
 
     # Validate request.
     name = request.match_info['name']
@@ -176,9 +184,14 @@ async def query_repository(request):
 
 
 async def delete_repository(request):
+    """."""
+
+    log = request.app['gitmesh.log']
 
     # Validate request.
     name = request.match_info['name']
+
+    log.info('repository.delete', name=name)
 
     # Delete the repository.
     storage = request.app['gitmesh.storage']
@@ -192,6 +205,8 @@ async def delete_repository(request):
 
 
 async def git_http_endpoint(request):
+
+    log = request.app['gitmesh.log']
 
     # Validate request.
     name = request.match_info['name']
@@ -238,6 +253,7 @@ async def git_http_endpoint(request):
     })
 
     # Execute the CGI script.
+    log.info('git-http-backend.run')
     output, errors = await repo.run(
         'git http-backend',
         input=data,
@@ -259,10 +275,13 @@ async def git_http_endpoint(request):
     print('HEAD:', json.dumps(head, indent=2, sort_keys=True))
     status = head.get('Status', '200 OK').strip()
     status = int(status.split(' ', 1)[0])
+    log.info('git-http-backend.done',
+             status=status, errors=errors, head=head)
     return web.Response(status=status, headers=head, body=body)
 
 
-async def serve_until(cancel, *, storage, host, port, linger=1.0):
+async def serve_until(cancel, *, storage, host, port, linger=1.0, log=None):
+    log = log or structlog.get_logger()
     loop = asyncio.get_event_loop()
 
     # Prepare a web application.
@@ -280,17 +299,22 @@ async def serve_until(cancel, *, storage, host, port, linger=1.0):
                          delete_repository, name='delete-repository')
 
     # Inject context.
+    app['gitmesh.log'] = log
     app['gitmesh.storage'] = storage
 
     # Start accepting connections.
     handler = app.make_handler(
-        access_log=logging.getLogger('http.access'),
+        access_log=log.bind(event='http.request')
     )
+    log.info(event='bind', transport='tcp', host=host, port=port)
     server = await loop.create_server(handler, host, port)
     try:
+        log.info(event='ready')
         await cancel
     finally:
+        log.info(event='shutdown', linger=linger, expected=cancel.done())
         server.close()
         await server.wait_closed()
         await handler.finish_connections(linger)
         await app.finish()
+        log.info(event='done')

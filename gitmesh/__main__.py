@@ -4,9 +4,9 @@
 import asyncio
 import click
 import importlib
-import logging
 import pkg_resources
 import signal
+import structlog
 import sys
 
 from inspect import iscoroutine
@@ -24,8 +24,11 @@ def find_entry_points(group):
 
 
 @click.group()
-def cli():
-    pass
+# @click.option('--log-level', default='debug',
+#               type=click.Choice(['debug', 'info', 'warning', 'error']))
+@click.pass_context
+def cli(ctx):
+    ctx.obj['log'] = structlog.get_logger()
 
 
 def _await(loop, r):
@@ -36,8 +39,13 @@ def _await(loop, r):
 
 
 @cli.command(name='pre-receive')
-def pre_receive():
+@click.pass_context
+def pre_receive(ctx):
     """Git pre-receive hook."""
+
+    log = ctx.obj['log']
+    log.info('git.hooks.pre-receive')
+
     loop = asyncio.get_event_loop()
     pre_receive_hooks = list(find_entry_points('gitmesh.pre_receive'))
     updates = [
@@ -55,8 +63,13 @@ def pre_receive():
 @click.argument('ref')
 @click.argument('old')
 @click.argument('new')
-def update(ref, old, new):
+@click.pass_context
+def update(ctx, ref, old, new):
     """Git pre-receive hook."""
+
+    log = ctx.obj['log']
+    log.info('git.hooks.update', ref=ref, old_sha=old, new_sha=new)
+
     loop = asyncio.get_event_loop()
     update_hooks = list(find_entry_points('gitmesh.update'))
     for _, update_hook in update_hooks:
@@ -65,8 +78,13 @@ def update(ref, old, new):
 
 
 @cli.command(name='post-receive')
-def post_receive():
+@click.pass_context
+def post_receive(ctx):
     """Git post-receive hook."""
+
+    log = ctx.obj['log']
+    log.info('git.hooks.post-receive')
+
     loop = asyncio.get_event_loop()
     post_receive_hooks = list(find_entry_points('gitmesh.post_receive'))
     updates = [
@@ -75,36 +93,42 @@ def post_receive():
     updates = {
         update[2]: (update[0], update[1]) for update in updates
     }
-    for _, post_receive_hook in post_receive_hooks:
-        print('Running hook %r.' % _)
+    for hook_name, post_receive_hook in post_receive_hooks:
+        log.info(event='post_update', hook=hook_name)
         _await(loop, post_receive_hook(updates=updates))
 
 
 @cli.command(name='post-update')
 @click.argument('refs', nargs=-1)
-def post_update(refs):
+@click.pass_context
+def post_update(ctx, refs):
     """Git post-update hook."""
+
+    log = ctx.obj['log']
+    log.info('git.hooks.post-update', refs=refs)
+
     loop = asyncio.get_event_loop()
     post_update_hooks = list(find_entry_points('gitmesh.post_update'))
-    for _, post_update_hook in post_update_hooks:
-        print('Running hook %r.' % _)
+    for hook_name, post_update_hook in post_update_hooks:
+        log.info(event='git.hooks.post_update', hook=hook_name)
         _await(loop, post_update_hook(refs=list(refs)))
 
 
 @cli.command(name='serve')
 @click.option('--host', default='0.0.0.0')
 @click.option('--port', default=8080)
-def serve(host, port):
+@click.pass_context
+def serve(ctx, host, port):
     """Run the server until SIGINT/CTRL-C is received."""
 
-    # Configure logging.
-    logging.basicConfig()
-    logging.getLogger('aiohttp.access').setLevel(logging.DEBUG)
+    log = ctx.obj['log']
+    log.info('serve', host=host, port=port)
 
     # Pick the right event loop.
     if sys.platform == 'win32':  # pragma: no cover
         asyncio.set_event_loop(asyncio.ProactorEventLoop())
     loop = asyncio.get_event_loop()
+    log.info('asyncio.init', loop=loop.__class__.__name__)
 
     # Await a SIGINT/CTRL-C event.
     cancel = asyncio.Future()
@@ -117,13 +141,13 @@ def serve(host, port):
     loop.run_until_complete(serve_until(
         cancel,
         storage=Storage('.'),
-        host=host, port=port,
+        host=host, port=port, log=log,
     ))
 
 
 def main():
     """Setuptools "console_script" entry point."""
-    return cli()
+    return cli(obj={})
 
 
 # Required for `python -m gitmesh`.
