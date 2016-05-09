@@ -7,6 +7,7 @@ import importlib
 import pkg_resources
 import signal
 import structlog
+import structlog.processors
 import sys
 
 from inspect import iscoroutine
@@ -23,12 +24,36 @@ def find_entry_points(group):
         yield entry_point.name, getattr(module, entry_point.attrs[-1])
 
 
+def configure_logging(log_format):
+    processors = []
+    if log_format == 'kv':
+        processors.append(structlog.processors.KeyValueRenderer())
+    else:
+        processors.append(structlog.processors.JSONRenderer())
+    structlog.configure(
+        processors=processors,
+    )
+
+
 @click.group()
 # @click.option('--log-level', default='debug',
 #               type=click.Choice(['debug', 'info', 'warning', 'error']))
+@click.option('--log-format', default='kv',
+              type=click.Choice(['kv', 'json']))
 @click.pass_context
-def cli(ctx):
-    ctx.obj['log'] = structlog.get_logger()
+def cli(ctx, log_format):
+    # Initialize logger.
+    configure_logging(log_format)
+    log = structlog.get_logger()
+
+    # Pick the right event loop.
+    if sys.platform == 'win32':  # pragma: no cover
+        asyncio.set_event_loop(asyncio.ProactorEventLoop())
+    loop = asyncio.get_event_loop()
+    log.info('asyncio.init', loop=loop.__class__.__name__)
+
+    # Inject context.
+    ctx.obj['log'] = log
 
 
 def _await(loop, r):
@@ -124,11 +149,7 @@ def serve(ctx, host, port):
     log = ctx.obj['log']
     log.info('serve', host=host, port=port)
 
-    # Pick the right event loop.
-    if sys.platform == 'win32':  # pragma: no cover
-        asyncio.set_event_loop(asyncio.ProactorEventLoop())
     loop = asyncio.get_event_loop()
-    log.info('asyncio.init', loop=loop.__class__.__name__)
 
     # Await a SIGINT/CTRL-C event.
     cancel = asyncio.Future()
