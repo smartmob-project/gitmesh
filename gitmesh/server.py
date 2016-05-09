@@ -262,17 +262,12 @@ async def git_http_endpoint(request):
         split=True,
     )
 
-    # TODO: log errors?
-    if errors:
-        pass
-
     # Format response.
     head, body = output.split(b'\r\n\r\n', 1)
     head = dict(
         line.split(':', 1)
         for line in head.decode('utf-8').split('\r\n')
     )
-    print('HEAD:', json.dumps(head, indent=2, sort_keys=True))
     status = head.get('Status', '200 OK').strip()
     status = int(status.split(' ', 1)[0])
     log.info('git-http-backend.done',
