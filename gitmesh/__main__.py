@@ -24,12 +24,23 @@ def find_entry_points(group):
         yield entry_point.name, getattr(module, entry_point.attrs[-1])
 
 
-def configure_logging(log_format):
-    processors = []
+def configure_logging(log_format, utc):
+    processors = [
+        structlog.processors.TimeStamper(
+            fmt='iso',
+            key='@timestamp',
+            utc=utc,
+        ),
+    ]
     if log_format == 'kv':
-        processors.append(structlog.processors.KeyValueRenderer())
+        processors.append(structlog.processors.KeyValueRenderer(
+            sort_keys=True,
+            key_order=['@timestamp', 'event'],
+        ))
     else:
-        processors.append(structlog.processors.JSONRenderer())
+        processors.append(structlog.processors.JSONRenderer(
+            sort_keys=True,
+        ))
     structlog.configure(
         processors=processors,
     )
@@ -40,10 +51,14 @@ def configure_logging(log_format):
 #               type=click.Choice(['debug', 'info', 'warning', 'error']))
 @click.option('--log-format', default='kv',
               type=click.Choice(['kv', 'json']))
+@click.option('--utc-timestamps', default=True, type=bool)
 @click.pass_context
-def cli(ctx, log_format):
+def cli(ctx, log_format, utc_timestamps):
     # Initialize logger.
-    configure_logging(log_format)
+    configure_logging(
+        log_format=log_format,
+        utc=utc_timestamps,
+    )
     log = structlog.get_logger()
 
     # Pick the right event loop.
