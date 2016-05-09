@@ -147,7 +147,11 @@ def serve(ctx, host, port):
 
 def main():
     """Setuptools "console_script" entry point."""
-    return cli(obj={})
+    loop = asyncio.get_event_loop()
+    try:
+        return cli(obj={})
+    finally:
+        loop.close()
 
 
 # Required for `python -m gitmesh`.
