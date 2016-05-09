@@ -43,6 +43,8 @@ def workspace():
 
 @pytest.fixture
 def cli():
+    __main__.configure_logging(log_format='kv', utc=False)
+
     # See: http://click.pocoo.org/5/testing/
     def run(command, input=None):
         print('RUN:', command)
@@ -73,6 +75,8 @@ def echo_plugin(event_loop):
 
 @pytest.yield_fixture(scope='function')
 def server(event_loop, storage):
+    __main__.configure_logging(log_format='kv', utc=False)
+
     cancel = asyncio.Future()
     server = event_loop.create_task(
         serve_until(cancel, storage=storage, host='127.0.0.1', port=8080)

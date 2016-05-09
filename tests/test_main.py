@@ -5,6 +5,7 @@ import pytest
 import structlog
 import testfixtures
 
+from freezegun import freeze_time
 from gitmesh.__main__ import main, _await, configure_logging
 from unittest import mock
 
@@ -16,15 +17,20 @@ def test_main():
 
 
 @pytest.mark.parametrize('log_format,expected', [
-    ('kv', "event='teh.event'"),
-    ('json', '{"event": "teh.event"}'),
+    ('kv', "@timestamp='2016-05-08T21:19:00' event='teh.event' a=1 b=2"),
+    ('json', ('{"@timestamp": "2016-05-08T21:19:00"'
+              ', "a": 1, "b": 2, "event": "teh.event"}')),
 ])
 def test_log_format_json(log_format, expected):
-    configure_logging(log_format)
-    log = structlog.get_logger()
-    with testfixtures.OutputCapture() as capture:
-        log.info('teh.event')
-    capture.compare(expected)
+    with freeze_time("2016-05-08 21:19:00"):
+        configure_logging(
+            log_format=log_format,
+            utc=False,
+        )
+        log = structlog.get_logger()
+        with testfixtures.OutputCapture() as capture:
+            log.info('teh.event', a=1, b=2)
+        capture.compare(expected)
 
 
 def test_await(event_loop):
