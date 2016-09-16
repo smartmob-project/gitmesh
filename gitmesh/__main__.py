@@ -61,10 +61,13 @@ def cli(ctx, log_format, utc_timestamps):
     )
     log = structlog.get_logger()
 
-    # Pick the right event loop.
-    if sys.platform == 'win32':  # pragma: no cover
-        asyncio.set_event_loop(asyncio.ProactorEventLoop())
-    loop = asyncio.get_event_loop()
+    # Pick the right event loop (unless it's already set).
+    loop = ctx.obj.get('loop')
+    if not loop:
+        if sys.platform == 'win32':  # pragma: no cover
+            asyncio.set_event_loop(asyncio.ProactorEventLoop())
+        loop = asyncio.get_event_loop()
+        ctx.obj['loop'] = loop
     log.info('asyncio.init', loop=loop.__class__.__name__)
 
     # Inject context.
@@ -86,17 +89,20 @@ def pre_receive(ctx):
     log = ctx.obj['log']
     log.info('git.hooks.pre-receive')
 
-    loop = asyncio.get_event_loop()
-    pre_receive_hooks = list(find_entry_points('gitmesh.pre_receive'))
-    updates = [
-        line.strip().split(' ', 2) for line in sys.stdin
-    ]
-    updates = {
-        update[2]: (update[0], update[1]) for update in updates
-    }
-    for _, pre_receive_hook in pre_receive_hooks:
-        print('Running hook %r.' % _)
-        _await(loop, pre_receive_hook(updates=updates))
+    loop = ctx.obj['loop']
+    try:
+        pre_receive_hooks = list(find_entry_points('gitmesh.pre_receive'))
+        updates = [
+            line.strip().split(' ', 2) for line in sys.stdin
+        ]
+        updates = {
+            update[2]: (update[0], update[1]) for update in updates
+        }
+        for _, pre_receive_hook in pre_receive_hooks:
+            print('Running hook %r.' % _)
+            _await(loop, pre_receive_hook(updates=updates))
+    finally:
+        loop.close()
 
 
 @cli.command(name='update')
@@ -110,11 +116,14 @@ def update(ctx, ref, old, new):
     log = ctx.obj['log']
     log.info('git.hooks.update', ref=ref, old_sha=old, new_sha=new)
 
-    loop = asyncio.get_event_loop()
-    update_hooks = list(find_entry_points('gitmesh.update'))
-    for _, update_hook in update_hooks:
-        print('Running hook %r.' % _)
-        _await(loop, update_hook(ref=ref, old=old, new=new))
+    loop = ctx.obj['loop']
+    try:
+        update_hooks = list(find_entry_points('gitmesh.update'))
+        for _, update_hook in update_hooks:
+            print('Running hook %r.' % _)
+            _await(loop, update_hook(ref=ref, old=old, new=new))
+    finally:
+        loop.close()
 
 
 @cli.command(name='post-receive')
@@ -125,17 +134,20 @@ def post_receive(ctx):
     log = ctx.obj['log']
     log.info('git.hooks.post-receive')
 
-    loop = asyncio.get_event_loop()
-    post_receive_hooks = list(find_entry_points('gitmesh.post_receive'))
-    updates = [
-        line.strip().split(' ', 2) for line in sys.stdin
-    ]
-    updates = {
-        update[2]: (update[0], update[1]) for update in updates
-    }
-    for hook_name, post_receive_hook in post_receive_hooks:
-        log.info(event='post_update', hook=hook_name)
-        _await(loop, post_receive_hook(updates=updates))
+    loop = ctx.obj['loop']
+    try:
+        post_receive_hooks = list(find_entry_points('gitmesh.post_receive'))
+        updates = [
+            line.strip().split(' ', 2) for line in sys.stdin
+        ]
+        updates = {
+            update[2]: (update[0], update[1]) for update in updates
+        }
+        for hook_name, post_receive_hook in post_receive_hooks:
+            log.info(event='post_update', hook=hook_name)
+            _await(loop, post_receive_hook(updates=updates))
+    finally:
+        loop.close()
 
 
 @cli.command(name='post-update')
@@ -147,11 +159,14 @@ def post_update(ctx, refs):
     log = ctx.obj['log']
     log.info('git.hooks.post-update', refs=refs)
 
-    loop = asyncio.get_event_loop()
-    post_update_hooks = list(find_entry_points('gitmesh.post_update'))
-    for hook_name, post_update_hook in post_update_hooks:
-        log.info(event='git.hooks.post_update', hook=hook_name)
-        _await(loop, post_update_hook(refs=list(refs)))
+    loop = ctx.obj['loop']
+    try:
+        post_update_hooks = list(find_entry_points('gitmesh.post_update'))
+        for hook_name, post_update_hook in post_update_hooks:
+            log.info(event='git.hooks.post_update', hook=hook_name)
+            _await(loop, post_update_hook(refs=list(refs)))
+    finally:
+        loop.close()
 
 
 @cli.command(name='serve')
@@ -164,10 +179,10 @@ def serve(ctx, host, port):
     log = ctx.obj['log']
     log.info('serve', host=host, port=port)
 
-    loop = asyncio.get_event_loop()
+    loop = ctx.obj['loop']
 
     # Await a SIGINT/CTRL-C event.
-    cancel = asyncio.Future()
+    cancel = asyncio.Future(loop=loop)
     if sys.platform == 'win32':  # pragma: no cover
         pass
     else:
@@ -177,17 +192,13 @@ def serve(ctx, host, port):
     loop.run_until_complete(serve_until(
         cancel,
         storage=Storage('.'),
-        host=host, port=port, log=log,
+        host=host, port=port, log=log, loop=loop,
     ))
 
 
 def main():
     """Setuptools "console_script" entry point."""
-    loop = asyncio.get_event_loop()
-    try:
-        return cli(obj={})
-    finally:
-        loop.close()
+    return cli(obj={})
 
 
 # Required for `python -m gitmesh`.

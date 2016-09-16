@@ -46,12 +46,13 @@ def cli():
     __main__.configure_logging(log_format='kv', utc=False)
 
     # See: http://click.pocoo.org/5/testing/
-    def run(command, input=None):
-        print('RUN:', command)
+    def run(loop, command, input=None):
         runner = click.testing.CliRunner()
         result = runner.invoke(
             __main__.cli, command,
-            obj={},
+            obj={
+                'loop': loop,
+            },
             env={},
             input=input,
         )
