@@ -8,6 +8,7 @@ import shutil
 import sys
 
 from asyncio import subprocess
+from itertools import chain
 from subprocess import CalledProcessError
 
 
@@ -17,14 +18,14 @@ def resolve_script(name):
     return os.path.join(os.path.join(sys.exec_prefix, 'bin'), name)
 
 
-async def check_output(command, cwd=None, env=None,
+async def check_output(command, cwd=None, env={},
                        input=None, binary=False, split=False):
     if isinstance(command, list):
         command = ' '.join([
             '"%s"' % arg for arg in command
         ])
     cwd = cwd or os.getcwd()
-    env = env or os.environ
+    env = {k: v for k, v in chain(os.environ.items(), env.items())}
     process = await asyncio.create_subprocess_shell(
         command,
         cwd=cwd, env=env,

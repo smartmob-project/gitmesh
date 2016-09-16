@@ -47,6 +47,7 @@ setup(
     install_requires=[
         'click>=6.6',
         'aiohttp>=0.20,<0.21',
+        'fluent-logger>=0.4,<0.5',
         'structlog>=16,<17',
         'voluptuous>=0.8,<0.9',
     ],

@@ -215,13 +215,6 @@ async def git_http_endpoint(request):
     storage = request.app['gitmesh.storage']
     repo = storage.open_repo(name, bare=True)
 
-    print('AUTH:', request.headers.get('authorization', ""))
-
-    # print('PATH:', path)
-    # print('QUERY:', request.query_string)
-    # print('LENGTH:', len(data))
-    # print('CONTENT-TYPE:', request.content_type)
-
     # TODO:
     # - authenticate on POST.
     env = dict(os.environ.items())
