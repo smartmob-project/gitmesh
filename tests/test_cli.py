@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 
+import asyncio
 import os
 import pkg_resources
 import signal
@@ -21,7 +22,7 @@ class DynamicObject(object):
             raise AttributeError(field, fields)
 
 
-def test_pre_receive(cli):
+def test_pre_receive(event_loop, cli):
 
     pre_receive = mock.MagicMock()
 
@@ -50,7 +51,7 @@ def test_pre_receive(cli):
         iter_entry_points.side_effect = mock_iter_entry_points
         with mock.patch('importlib.import_module') as import_module:
             import_module.side_effect = mock_import_module
-            cli(['pre-receive'], input='\n'.join([
+            cli(event_loop, ['pre-receive'], input='\n'.join([
                 'a b c',
                 'd e f',
             ]))
@@ -64,7 +65,7 @@ def test_pre_receive(cli):
     )
 
 
-def test_update(cli):
+def test_update(event_loop, cli):
 
     update = mock.MagicMock()
 
@@ -93,7 +94,7 @@ def test_update(cli):
         iter_entry_points.side_effect = mock_iter_entry_points
         with mock.patch('importlib.import_module') as import_module:
             import_module.side_effect = mock_import_module
-            cli(['update', 'a', 'b', 'c'])
+            cli(event_loop, ['update', 'a', 'b', 'c'])
 
     # Then it should have been invoked based on command-line arguments.
     update.assert_called_once_with(
@@ -103,7 +104,7 @@ def test_update(cli):
     )
 
 
-def test_post_receive(cli):
+def test_post_receive(event_loop, cli):
 
     post_receive = mock.MagicMock()
 
@@ -132,7 +133,7 @@ def test_post_receive(cli):
         iter_entry_points.side_effect = mock_iter_entry_points
         with mock.patch('importlib.import_module') as import_module:
             import_module.side_effect = mock_import_module
-            cli(['post-receive'], input='\n'.join([
+            cli(event_loop, ['post-receive'], input='\n'.join([
                 'a b c',
                 'd e f',
             ]))
@@ -146,7 +147,7 @@ def test_post_receive(cli):
     )
 
 
-def test_post_update(cli):
+def test_post_update(event_loop, cli):
 
     post_update = mock.MagicMock()
 
@@ -175,7 +176,7 @@ def test_post_update(cli):
         iter_entry_points.side_effect = mock_iter_entry_points
         with mock.patch('importlib.import_module') as import_module:
             import_module.side_effect = mock_import_module
-            cli(['post-update', 'a', 'b', 'c', 'd', 'e', 'f'])
+            cli(event_loop, ['post-update', 'a', 'b', 'c', 'd', 'e', 'f'])
 
     # Then it should have been invoked based on command-line arguments.
     post_update.assert_called_once_with(
@@ -195,4 +196,13 @@ def test_serve(event_loop, cli):
     # Make sure we eventually get a SIGINT/CTRL-C even.
     event_loop.call_later(1.0, os.kill, os.getpid(), signal.SIGINT)
 
-    cli(['serve'])
+    cli(event_loop, ['serve'])
+
+
+def test_serve_default_event_loop(event_loop, cli):
+
+    # Make sure we eventually get a SIGINT/CTRL-C even.
+    event_loop.call_later(1.0, os.kill, os.getpid(), signal.SIGINT)
+
+    asyncio.set_event_loop(event_loop)
+    cli(None, ['serve'])

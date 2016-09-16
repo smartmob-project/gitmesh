@@ -275,9 +275,10 @@ async def git_http_endpoint(request):
     return web.Response(status=status, headers=head, body=body)
 
 
-async def serve_until(cancel, *, storage, host, port, linger=1.0, log=None):
+async def serve_until(cancel, *, storage, host, port, linger=1.0, log=None,
+                      loop=None):
     log = log or structlog.get_logger()
-    loop = asyncio.get_event_loop()
+    loop = loop or asyncio.get_event_loop()
 
     # Prepare a web application.
     app = web.Application(loop=loop)

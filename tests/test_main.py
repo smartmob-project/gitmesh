@@ -42,7 +42,7 @@ def test_await(event_loop):
         return hello(name)
 
     def hello_future(name):
-        f = asyncio.Future()
+        f = asyncio.Future(loop=event_loop)
         f.set_result(hello(name))
         return f
 
