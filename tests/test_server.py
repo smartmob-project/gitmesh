@@ -268,6 +268,8 @@ async def test_clone_repository(server, client, run, workspace,
             'delete': 'http://%s/repositories/foo' % server,
         }
 
+        assert rep.headers['X-Request-Id']
+
     # When we try to clone it.
     logging.debug('FOO')
     clone_url = repo['clone'][0]

@@ -6,6 +6,7 @@ import json
 import os
 import structlog
 import timeit
+import uuid
 
 from aiohttp import web
 from voluptuous import Schema, Required, MultipleInvalid
@@ -14,6 +15,28 @@ from gitmesh.storage import (
     RepositoryExists,
     UnknownRepository,
 )
+
+
+async def inject_request_id(app, handler):
+    """aiohttp middleware: ensures each request has a unique request ID.
+
+    See: ``inject_request_id``.
+    """
+
+    async def trace_request(request):
+        request['x-request-id'] = \
+            request.headers.get('x-request-id') or str(uuid.uuid4())
+        return await handler(request)
+
+    return trace_request
+
+
+async def echo_request_id(request, response):
+    """aiohttp signal: ensures each response contains the request ID.
+
+    See: ``echo_request_id``.
+    """
+    response.headers['x-request-id'] = request.get('x-request-id', '?')
 
 
 async def access_log_middleware(app, handler):
@@ -31,6 +54,7 @@ async def access_log_middleware(app, handler):
                 path=request.path,
                 outcome=response.status,
                 duration=(clock()-ref),
+                request=request.get('x-request-id', '?'),
             )
             return response
         except web.HTTPException as error:
@@ -39,6 +63,7 @@ async def access_log_middleware(app, handler):
                 path=request.path,
                 outcome=error.status,
                 duration=(clock()-ref),
+                request=request.get('x-request-id', '?'),
             )
             raise
         except Exception:
@@ -47,6 +72,7 @@ async def access_log_middleware(app, handler):
                 path=request.path,
                 outcome=500,
                 duration=(clock()-ref),
+                request=request.get('x-request-id', '?'),
             )
             raise
 
@@ -312,7 +338,11 @@ async def serve_until(cancel, *, storage, host, port, linger=1.0, log=None,
     loop = loop or asyncio.get_event_loop()
 
     # Prepare a web application.
-    app = web.Application(loop=loop, middlewares=[access_log_middleware])
+    app = web.Application(loop=loop, middlewares=[
+        inject_request_id,
+        access_log_middleware,
+    ])
+    app.on_response_prepare.append(echo_request_id)
     app.router.add_route('GET', '/', index, name='index')
     app.router.add_route('GET', '/repositories',
                          list_repositories, name='list-repositories')
