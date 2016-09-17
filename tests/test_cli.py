@@ -5,8 +5,40 @@ import asyncio
 import os
 import pkg_resources
 import signal
+import testfixtures
 
+from contextlib import contextmanager
 from unittest import mock
+
+
+@contextmanager
+def setenv(env):
+    """Temporarily set environment variables."""
+    created_vars = set(env) - set(os.environ)
+    updated_vars = {
+        k: os.environ[k] for k in set(env) & set(os.environ)
+    }
+    for k, v in env.items():
+        if k in created_vars:
+            print('CREATING ENV VAR `%s=%s`.' % (
+                k, env[k],
+            ))
+        if k in updated_vars:
+            print('CHANGING ENV VAR `%s=%s` (was `%s`).' % (
+                k, env[k], os.environ[k]
+            ))
+        os.environ[k] = v
+    try:
+        yield
+    finally:
+        for k in created_vars:
+            print('REMOVING ENV VAR `%s`.' % (k,))
+            del os.environ[k]
+        for k, v in updated_vars.items():
+            print('RESTORING ENV VAR `%s=%s`.' % (
+                k, v,
+            ))
+            os.environ[k] = v
 
 
 class DynamicObject(object):
@@ -191,18 +223,33 @@ def test_post_update(event_loop, cli):
     )
 
 
-def test_serve(event_loop, cli):
+def test_serve(fluent_emit, event_loop, cli):
 
-    # Make sure we eventually get a SIGINT/CTRL-C even.
-    event_loop.call_later(1.0, os.kill, os.getpid(), signal.SIGINT)
-
-    cli(event_loop, ['serve'])
-
-
-def test_serve_default_event_loop(event_loop, cli):
-
-    # Make sure we eventually get a SIGINT/CTRL-C even.
+    # Make sure we eventually get a SIGINT/CTRL-C event.
     event_loop.call_later(1.0, os.kill, os.getpid(), signal.SIGINT)
 
     asyncio.set_event_loop(event_loop)
-    cli(None, ['serve'])
+    env = {
+        'GITMESH_LOGGING_ENDPOINT': 'fluent://127.0.0.1:24224/gitmesh',
+    }
+    with setenv(env):
+        with testfixtures.OutputCapture() as capture:
+            cli(event_loop, ['serve'])
+    capture.compare('')
+    assert fluent_emit.call_count > 0
+
+
+def test_serve_default_event_loop(fluent_emit, event_loop, cli):
+
+    # Make sure we eventually get a SIGINT/CTRL-C even.
+    event_loop.call_later(1.0, os.kill, os.getpid(), signal.SIGINT)
+
+    env = {
+        'GITMESH_LOGGING_ENDPOINT': 'fluent://127.0.0.1:24224/gitmesh',
+    }
+    with setenv(env):
+        with testfixtures.OutputCapture() as capture:
+            asyncio.set_event_loop(event_loop)
+            cli(None, ['serve'])
+    capture.compare('')
+    assert fluent_emit.call_count > 0

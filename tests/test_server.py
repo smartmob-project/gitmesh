@@ -244,7 +244,8 @@ async def test_delete_unknown_repository(server, client):
 
 
 @pytest.mark.asyncio
-async def test_clone_repository(server, client, run, workspace):
+async def test_clone_repository(server, client, run, workspace,
+                                fluent_emit, fluent_server):
     # Given the server is running.
     async with client.get('http://%s/' % server) as rep:
         assert rep.status == 200
@@ -269,7 +270,8 @@ async def test_clone_repository(server, client, run, workspace):
 
     # When we try to clone it.
     logging.debug('FOO')
-    await workspace.run('git clone ' + repo['clone'][0])
+    clone_url = repo['clone'][0]
+    await workspace.run('git clone ' + clone_url)
 
     # Then we should be able to push to it.
     repo = workspace.open_repo(repo['name'], bare=False)
@@ -278,4 +280,11 @@ async def test_clone_repository(server, client, run, workspace):
     repo.edit('README.txt', 'Nothing to see here!')
     await repo.run('git add README.txt')
     await repo.run('git commit -m "Starts project."')
-    await repo.run('git push origin master')
+    output = await repo.run('git push origin master')
+    assert output == '\n'.join([
+        'To %s' % clone_url,
+        ' * [new branch]      master -> master',
+    ])
+    assert fluent_emit.call_count > 0
+    # Git hook logs will be sent to our mock FluentD server.
+    assert len(fluent_server[2]) > 0

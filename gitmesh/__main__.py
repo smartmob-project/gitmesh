@@ -3,6 +3,7 @@
 
 import asyncio
 import click
+import fluent.sender
 import importlib
 import pkg_resources
 import signal
@@ -11,6 +12,7 @@ import structlog.processors
 import sys
 
 from inspect import iscoroutine
+from urllib.parse import urlsplit
 
 from gitmesh.server import serve_until
 from gitmesh.storage import Storage
@@ -24,7 +26,60 @@ def find_entry_points(group):
         yield entry_point.name, getattr(module, entry_point.attrs[-1])
 
 
-def configure_logging(log_format, utc):
+class FluentLoggerFactory:
+    """For use with ``structlog.configure(logger_factory=...)``."""
+
+    @classmethod
+    def from_url(cls, url):
+        parts = urlsplit(url)
+        if parts.scheme != 'fluent':
+            raise ValueError('Invalid URL: "%s".' % url)
+        if parts.query or parts.fragment:
+            raise ValueError('Invalid URL: "%s".' % url)
+        netloc = parts.netloc.rsplit(':', 1)
+        if len(netloc) == 1:
+            host, port = netloc[0], 24224
+        else:
+            host, port = netloc
+            try:
+                port = int(port)
+            except ValueError:
+                raise ValueError('Invalid URL: "%s".' % url)
+        return FluentLoggerFactory(parts.path[1:], host, port)
+
+    def __init__(self, app, host, port):
+        self._app = app
+        self._host = host
+        self._port = port
+        self._sender = fluent.sender.FluentSender(app, host=host, port=port)
+
+    @property
+    def host(self):
+        return self._host
+
+    @property
+    def port(self):
+        return self._port
+
+    @property
+    def app(self):
+        return self._app
+
+    def __call__(self):
+        return FluentLogger(self._sender)
+
+
+class FluentLogger:
+    """Structlog logger that sends events to FluentD."""
+
+    def __init__(self, sender):
+        self._sender = sender
+
+    def info(self, event, **kwds):
+        self._sender.emit(event, kwds)
+
+
+def configure_logging(log_format, utc, endpoint):
     processors = [
         structlog.processors.TimeStamper(
             fmt='iso',
@@ -32,30 +87,52 @@ def configure_logging(log_format, utc):
             utc=utc,
         ),
     ]
-    if log_format == 'kv':
-        processors.append(structlog.processors.KeyValueRenderer(
-            sort_keys=True,
-            key_order=['@timestamp', 'event'],
-        ))
+    if endpoint.startswith('file://'):
+        path = endpoint[7:]
+        if path == '/dev/stdout':
+            stream = sys.stdout
+        elif path == '/dev/stderr':
+            stream = sys.stderr
+        else:
+            stream = open(path, 'w')
+        logger_factory = structlog.PrintLoggerFactory(file=stream)
+        if log_format == 'kv':
+            processors.append(structlog.processors.KeyValueRenderer(
+                sort_keys=True,
+                key_order=['@timestamp', 'event'],
+            ))
+        else:
+            processors.append(structlog.processors.JSONRenderer(
+                sort_keys=True,
+            ))
+    elif endpoint.startswith('fluent://'):
+        utc = True
+        logger_factory = FluentLoggerFactory.from_url(endpoint)
     else:
-        processors.append(structlog.processors.JSONRenderer(
-            sort_keys=True,
-        ))
+        raise ValueError('Invalid logging endpoint "%s".' % endpoint)
     structlog.configure(
         processors=processors,
+        logger_factory=logger_factory,
     )
 
 
+# TODO: turn --log-format and --logging-endpoint arguments into query string
+#       parameters of file:/// URL.
 @click.group()
 # @click.option('--log-level', default='debug',
 #               type=click.Choice(['debug', 'info', 'warning', 'error']))
 @click.option('--log-format', default='kv',
               type=click.Choice(['kv', 'json']))
 @click.option('--utc-timestamps', default=True, type=bool)
+@click.option('--logging-endpoint',
+              default='file:///dev/stdout',
+              envvar='GITMESH_LOGGING_ENDPOINT')
 @click.pass_context
-def cli(ctx, log_format, utc_timestamps):
+def cli(ctx, log_format, utc_timestamps, logging_endpoint):
+
     # Initialize logger.
     configure_logging(
+        endpoint=logging_endpoint,
         log_format=log_format,
         utc=utc_timestamps,
     )
