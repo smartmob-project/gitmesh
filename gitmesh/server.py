@@ -5,6 +5,7 @@ import asyncio
 import json
 import os
 import structlog
+import timeit
 
 from aiohttp import web
 from voluptuous import Schema, Required, MultipleInvalid
@@ -13,6 +14,43 @@ from gitmesh.storage import (
     RepositoryExists,
     UnknownRepository,
 )
+
+
+async def access_log_middleware(app, handler):
+    """Log each request in structured event log."""
+
+    event_log = app.get('gitmesh.event_log') or structlog.get_logger()
+    clock = app.get('gitmesh.clock') or timeit.default_timer
+
+    async def access_log(request):
+        ref = clock()
+        try:
+            response = await handler(request)
+            event_log.info(
+                'http.access',
+                path=request.path,
+                outcome=response.status,
+                duration=(clock()-ref),
+            )
+            return response
+        except web.HTTPException as error:
+            event_log.info(
+                'http.access',
+                path=request.path,
+                outcome=error.status,
+                duration=(clock()-ref),
+            )
+            raise
+        except Exception:
+            event_log.info(
+                'http.access',
+                path=request.path,
+                outcome=500,
+                duration=(clock()-ref),
+            )
+            raise
+
+    return access_log
 
 
 Index = Schema({
@@ -90,7 +128,7 @@ def _details_url(request, name):
 async def index(request):
     """."""
 
-    log = request.app['gitmesh.log']
+    log = request.app['gitmesh.event_log']
     log.info('api.list-repositories')
 
     return web.json_response(Index({
@@ -124,7 +162,7 @@ async def list_repositories(request):
 async def create_repository(request):
     """."""
 
-    log = request.app['gitmesh.log']
+    log = request.app['gitmesh.event_log']
 
     # Validate request.
     r = await request.json()
@@ -186,7 +224,7 @@ async def query_repository(request):
 async def delete_repository(request):
     """."""
 
-    log = request.app['gitmesh.log']
+    log = request.app['gitmesh.event_log']
 
     # Validate request.
     name = request.match_info['name']
@@ -206,7 +244,7 @@ async def delete_repository(request):
 
 async def git_http_endpoint(request):
 
-    log = request.app['gitmesh.log']
+    log = request.app['gitmesh.event_log']
 
     # Validate request.
     name = request.match_info['name']
@@ -274,7 +312,7 @@ async def serve_until(cancel, *, storage, host, port, linger=1.0, log=None,
     loop = loop or asyncio.get_event_loop()
 
     # Prepare a web application.
-    app = web.Application(loop=loop)
+    app = web.Application(loop=loop, middlewares=[access_log_middleware])
     app.router.add_route('GET', '/', index, name='index')
     app.router.add_route('GET', '/repositories',
                          list_repositories, name='list-repositories')
@@ -288,13 +326,12 @@ async def serve_until(cancel, *, storage, host, port, linger=1.0, log=None,
                          delete_repository, name='delete-repository')
 
     # Inject context.
-    app['gitmesh.log'] = log
+    app['gitmesh.event_log'] = log
     app['gitmesh.storage'] = storage
+    app['gitmesh.clock'] = timeit.default_timer
 
     # Start accepting connections.
-    handler = app.make_handler(
-        access_log=log.bind(event='http.request')
-    )
+    handler = app.make_handler()
     log.info(event='bind', transport='tcp', host=host, port=port)
     server = await loop.create_server(handler, host, port)
     try:
