@@ -177,3 +177,16 @@ def server(event_loop, storage, fluent_server):
 def client(event_loop):
     with aiohttp.ClientSession() as session:
         yield session
+
+
+@pytest.fixture(scope='function', autouse=True)
+def logging():
+    """Setup default logging for tests.
+
+    Tests can reconfigure logging if they wish to.
+    """
+    __main__.configure_logging(
+        log_format='kv',
+        utc=False,
+        endpoint='file:///dev/stdout',
+    )
