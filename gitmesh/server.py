@@ -300,6 +300,8 @@ async def git_http_endpoint(request):
         # 'SERVER_PORT': '',
         # 'SERVER_PROTOCOL': '',
         # 'SERVER_SOFTWARE': '',
+        # Custom.
+        'GITMESH_REQUEST_ID': request['x-request-id'],
     })
     # env.update({
     # 'HTTP_'
