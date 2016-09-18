@@ -245,7 +245,7 @@ async def test_delete_unknown_repository(server, client):
 
 @pytest.mark.asyncio
 async def test_clone_repository(server, client, run, workspace,
-                                fluent_emit, fluent_server, reqid_plugin):
+                                fluent_emit, fluent_server):
     # Given the server is running.
     async with client.get('http://%s/' % server) as rep:
         assert rep.status == 200
@@ -290,8 +290,7 @@ async def test_clone_repository(server, client, run, workspace,
         'push origin master',
     ]))
     assert output == '\n'.join([
-        "remote: Running hook 'reqid'.        ",
-        'remote: request ID: "MY-REQ-ID".        ',
+        'remote: Request ID: "MY-REQ-ID".        ',
         'To %s' % clone_url,
         ' * [new branch]      master -> master',
     ])
