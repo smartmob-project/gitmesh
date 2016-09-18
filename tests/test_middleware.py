@@ -53,6 +53,7 @@ async def test_middleware_success_200():
         outcome=200,
         duration=1.0,
         request='123',
+        **{'@timestamp': mock.ANY}
     )
 
 
@@ -97,6 +98,7 @@ async def test_middleware_success_other(event_loop, status):
         outcome=status,
         duration=1.0,
         request='123',
+        **{'@timestamp': mock.ANY}
     )
 
 
@@ -142,6 +144,7 @@ async def test_middleware_failure_http_exception(exc_class, expected_status):
         outcome=expected_status,
         duration=1.0,
         request='123',
+        **{'@timestamp': mock.ANY}
     )
 
 
@@ -187,4 +190,5 @@ async def test_middleware_failure_other_exception(exc_class):
         outcome=500,
         duration=1.0,
         request='123',
+        **{'@timestamp': mock.ANY}
     )

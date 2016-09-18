@@ -143,6 +143,29 @@ def test_logging_fluentd(emit, logging_endpoint):
         })
 
 
+@pytest.mark.parametrize('logging_endpoint', [
+    'fluent://127.0.0.1:24224/the-app',
+])
+@mock.patch('fluent.sender.FluentSender.emit')
+def test_logging_fluentd_override_timestamp(emit, logging_endpoint):
+    with freeze_time("2016-05-08 21:19:00"):
+        configure_logging(
+            log_format='kv', utc=False,  # both ignored!
+            endpoint=logging_endpoint,
+        )
+        log = structlog.get_logger()
+        with testfixtures.OutputCapture() as capture:
+            log.info('teh.event', a=1, b=2, **{
+                '@timestamp': '2016-05-08T21:15:00',  # 4 minutes earlier.
+            })
+        capture.compare('')
+        emit.assert_called_once_with('teh.event', {
+            'a': 1,
+            'b': 2,
+            '@timestamp': '2016-05-08T21:15:00',  # overriden!
+        })
+
+
 def test_await(event_loop):
 
     def hello(name):

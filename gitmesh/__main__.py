@@ -11,6 +11,7 @@ import structlog
 import structlog.processors
 import sys
 
+from datetime import datetime, timezone
 from inspect import iscoroutine
 from urllib.parse import urlsplit
 
@@ -79,10 +80,37 @@ class FluentLogger:
         self._sender.emit(event, kwds)
 
 
+class TimeStamper(object):
+    """Custom implementation of ``structlog.processors.TimeStamper``.
+
+    See:
+    - https://github.com/hynek/structlog/issues/81
+    """
+
+    def __init__(self, key, utc):
+        self._key = key
+        self._utc = utc
+        if utc:
+            def now():
+                return datetime.utcnow().replace(tzinfo=timezone.utc)
+        else:
+            def now():
+                return datetime.now()
+        self._now = now
+
+    def __call__(self, _, __, event_dict):
+        timestamp = event_dict.get('@timestamp')
+        if timestamp is None:
+            timestamp = self._now()
+        if isinstance(timestamp, datetime):
+            timestamp = timestamp.isoformat()
+        event_dict['@timestamp'] = timestamp
+        return event_dict
+
+
 def configure_logging(log_format, utc, endpoint):
     processors = [
-        structlog.processors.TimeStamper(
-            fmt='iso',
+        TimeStamper(
             key='@timestamp',
             utc=utc,
         ),
