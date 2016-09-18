@@ -5,6 +5,7 @@ import asyncio
 import click
 import fluent.sender
 import importlib
+import os
 import pkg_resources
 import signal
 import structlog
@@ -191,6 +192,10 @@ def _await(loop, r):
 def pre_receive(ctx):
     """Git pre-receive hook."""
 
+    # Send the request ID back to the Git client so we can debug failed
+    # deployments.
+    print('Request ID: "%s".' % os.environ.get('GITMESH_REQUEST_ID', '?'))
+
     log = ctx.obj['log']
     log.info('git.hooks.pre-receive')
 
@@ -216,7 +221,7 @@ def pre_receive(ctx):
 @click.argument('new')
 @click.pass_context
 def update(ctx, ref, old, new):
-    """Git pre-receive hook."""
+    """Git update hook."""
 
     log = ctx.obj['log']
     log.info('git.hooks.update', ref=ref, old_sha=old, new_sha=new)
