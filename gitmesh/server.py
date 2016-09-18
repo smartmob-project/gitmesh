@@ -9,6 +9,7 @@ import timeit
 import uuid
 
 from aiohttp import web
+from datetime import datetime, timezone
 from voluptuous import Schema, Required, MultipleInvalid
 
 from gitmesh.storage import (
@@ -45,6 +46,10 @@ async def access_log_middleware(app, handler):
     event_log = app.get('gitmesh.event_log') or structlog.get_logger()
     clock = app.get('gitmesh.clock') or timeit.default_timer
 
+    # Keep the request arrival time to ensure we get intuitive logging of
+    # events.
+    arrival_time = datetime.utcnow().replace(tzinfo=timezone.utc)
+
     async def access_log(request):
         ref = clock()
         try:
@@ -55,6 +60,7 @@ async def access_log_middleware(app, handler):
                 outcome=response.status,
                 duration=(clock()-ref),
                 request=request.get('x-request-id', '?'),
+                **{'@timestamp': arrival_time},
             )
             return response
         except web.HTTPException as error:
@@ -64,6 +70,7 @@ async def access_log_middleware(app, handler):
                 outcome=error.status,
                 duration=(clock()-ref),
                 request=request.get('x-request-id', '?'),
+                **{'@timestamp': arrival_time},
             )
             raise
         except Exception:
@@ -73,6 +80,7 @@ async def access_log_middleware(app, handler):
                 outcome=500,
                 duration=(clock()-ref),
                 request=request.get('x-request-id', '?'),
+                **{'@timestamp': arrival_time},
             )
             raise
 
