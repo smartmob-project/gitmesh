@@ -245,7 +245,7 @@ async def test_delete_unknown_repository(server, client):
 
 @pytest.mark.asyncio
 async def test_clone_repository(server, client, run, workspace,
-                                fluent_emit, fluent_server):
+                                fluent_emit, fluent_server, reqid_plugin):
     # Given the server is running.
     async with client.get('http://%s/' % server) as rep:
         assert rep.status == 200
@@ -276,14 +276,22 @@ async def test_clone_repository(server, client, run, workspace,
     await workspace.run('git clone ' + clone_url)
 
     # Then we should be able to push to it.
+    #
+    # NOTE: this test requires Git 2.9+ to use the `http.extraHeader` option.
     repo = workspace.open_repo(repo['name'], bare=False)
     await repo.run('git config user.name "py.test"')
     await repo.run('git config user.email "noreply@example.org"')
     repo.edit('README.txt', 'Nothing to see here!')
     await repo.run('git add README.txt')
     await repo.run('git commit -m "Starts project."')
-    output = await repo.run('git push origin master')
+    output = await repo.run(' '.join([
+        'git',
+        '-c http.extraheader="X-Request-Id: MY-REQ-ID"',
+        'push origin master',
+    ]))
     assert output == '\n'.join([
+        "remote: Running hook 'reqid'.        ",
+        'remote: request ID: "MY-REQ-ID".        ',
         'To %s' % clone_url,
         ' * [new branch]      master -> master',
     ])

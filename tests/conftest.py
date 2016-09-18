@@ -103,6 +103,17 @@ def echo_plugin(event_loop):
 
 
 @pytest.yield_fixture(scope='function')
+def reqid_plugin(event_loop):
+    event_loop.run_until_complete(check_output(
+        'pip install ./tests/plug-ins/reqid/'
+    ))
+    yield
+    event_loop.run_until_complete(check_output(
+        'pip uninstall -y reqid'
+    ))
+
+
+@pytest.yield_fixture(scope='function')
 def fluent_emit():
     with mock.patch('fluent.sender.FluentSender.emit') as emit:
         yield emit
